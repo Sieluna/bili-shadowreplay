@@ -128,10 +128,7 @@ impl DouyinDanmu {
         // Call the get_wss_url function
         let sign_call = format!("get_wss_url(\"{}\")", self.room_id);
         let result = runtime
-            .execute_script(
-                "<sign_call>",
-                deno_core::FastString::from(sign_call),
-            )
+            .execute_script("<sign_call>", deno_core::FastString::from(sign_call))
             .map_err(|e| DanmuStreamError::WebsocketError {
                 err: format!("Failed to execute JavaScript: {}", e),
             })?;
