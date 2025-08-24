@@ -1,4 +1,7 @@
-use serde::{Serialize, Deserialize};
+use std::collections::HashMap;
+
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 /// HLS segment metadata (no actual data)
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -17,6 +20,8 @@ pub struct HlsSegment {
     pub program_date_time: Option<String>,
     /// Byte range if this is a partial segment (offset, length)
     pub byte_range: Option<(u64, u64)>,
+    /// Additional platform-specific metadata (extensible)
+    pub metadata: HashMap<String, Value>,
 }
 
 impl HlsSegment {
@@ -29,6 +34,7 @@ impl HlsSegment {
             discontinuity: false,
             program_date_time: None,
             byte_range: None,
+            metadata: HashMap::new(),
         }
     }
 
@@ -45,6 +51,20 @@ impl HlsSegment {
     pub fn with_byte_range(mut self, byte_range: Option<(u64, u64)>) -> Self {
         self.byte_range = byte_range;
         self
+    }
+
+    pub fn with_metadata(mut self, key: String, value: Value) -> Self {
+        self.metadata.insert(key, value);
+        self
+    }
+
+    pub fn get_metadata<T>(&self, key: &str) -> Option<T>
+    where
+        T: serde::de::DeserializeOwned,
+    {
+        self.metadata
+            .get(key)
+            .and_then(|v| serde_json::from_value(v.clone()).ok())
     }
 
     /// Check if this segment is newer than another based on sequence

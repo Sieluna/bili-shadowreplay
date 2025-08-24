@@ -1,14 +1,14 @@
-pub mod stream;
-pub mod segment;
 pub mod provider;
+pub mod segment;
+pub mod stream;
 
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use serde::{Serialize, Deserialize};
 
 // Re-export main types
-pub use stream::HlsStream;
+pub use provider::{HlsProvider, ProviderType};
 pub use segment::HlsSegment;
-pub use provider::{ProviderType, HlsProvider};
+pub use stream::HlsStream;
 
 #[derive(Error, Debug)]
 pub enum HlsStreamError {
@@ -32,23 +32,23 @@ pub enum StreamEvent {
     /// New segment available
     NewSegment(HlsSegment),
     /// Stream started
-    StreamStarted { 
-        live_id: String, 
+    StreamStarted {
+        live_id: String,
         playlist_url: String,
         target_duration: f64,
     },
     /// Stream ended
     StreamEnded,
     /// Quality changed
-    QualityChanged { 
-        from: String, 
-        to: String, 
-        new_playlist_url: String 
+    QualityChanged {
+        from: String,
+        to: String,
+        new_playlist_url: String,
     },
     /// Playlist refreshed
-    PlaylistRefreshed { 
-        total_segments: usize, 
-        new_segments: usize 
+    PlaylistRefreshed {
+        total_segments: usize,
+        new_segments: usize,
     },
 }
 
