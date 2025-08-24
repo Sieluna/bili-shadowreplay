@@ -235,8 +235,8 @@ impl BilibiliProvider {
 
     /// Parse BILI-AUX offset from unknown tags
     /// Format: #BILI-AUX:<HEX_OFFSET>|<EXTRA_DATA>
-    fn parse_bili_aux_offset(&self, unknown_tags: &[m3u8_rs::tags::UnknownTag]) -> Option<i64> {
-        for tag in unknown_tags {
+    fn parse_bili_aux_offset(&self, segment: &m3u8_rs::MediaSegment) -> Option<i64> {
+        for tag in &segment.unknown_tags {
             if tag.tag == "BILI-AUX" {
                 if let Some(rest) = &tag.rest {
                     // Split by '|' and take the first part (hex offset)
@@ -309,8 +309,7 @@ impl HlsProvider for BilibiliProvider {
                     );
 
                     // Parse BILI-AUX timing information
-                    if let Some(bili_aux_offset) = self.parse_bili_aux_offset(&segment.unknown_tags)
-                    {
+                    if let Some(bili_aux_offset) = self.parse_bili_aux_offset(segment) {
                         hls_segment = hls_segment.with_metadata(
                             "bili_aux_offset".to_string(),
                             serde_json::Value::Number(serde_json::Number::from(bili_aux_offset)),

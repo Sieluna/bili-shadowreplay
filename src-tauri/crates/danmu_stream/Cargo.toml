@@ -8,6 +8,10 @@ name = "danmu_stream"
 path = "src/lib.rs"
 
 [[example]]
+name = "bilibili"
+path = "examples/bilibili.rs"
+
+[[example]]
 name = "douyin"
 path = "examples/douyin.rs"
 

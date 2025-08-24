@@ -1,6 +1,11 @@
 [workspace]
-members = ["crates/danmu_stream", "crates/hls_stream"]
+members = ["crates/danmu_stream", "crates/hls_stream", "crates/recorder"]
 resolver = "2"
+
+[workspace.dependencies]
+danmu_stream = { path = "crates/danmu_stream" }
+hls_stream = { path = "crates/hls_stream" }
+recorder = { path = "crates/recorder" }
 
 [package]
 name = "bili-shadowreplay"
