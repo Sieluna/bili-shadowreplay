@@ -63,21 +63,24 @@ async function invoke<T>(
       return;
     }
 
-    const response = await fetch(`${ENDPOINT}/api/${command}`, {
+    let response = await fetch(`${ENDPOINT}/api/${command}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
       body: JSON.stringify(args || {}),
     });
+
     // if status is 405, it means the command is not allowed
     if (response.status === 405) {
       throw new Error(
-        `Command ${command} is not allowed, maybe bili-shadowreplay is running in readonly mode`
+        `Command ${command} is not allowed, maybe bili-shadowreplay is running in readonly mode or HTTP method mismatch`
       );
     }
     if (!response.ok) {
-      const error = await response.json();
+      const error = await response.json().catch(() => ({
+        message: `HTTP ${response.status}`,
+      }));
       throw new Error(error.message || `HTTP error: ${response.status}`);
     }
 
@@ -124,7 +127,7 @@ async function convertFileSrc(filePath: string) {
   if (TAURI_ENV) {
     // 在客户端模式下，需要获取config来构建绝对路径
     try {
-      const config = await invoke("get_config") as any;
+      const config = (await invoke("get_config")) as any;
       const absolutePath = `${config.output}/${filePath}`;
       return tauri_convert(absolutePath);
     } catch (error) {
@@ -145,7 +148,7 @@ async function convertCoverSrc(coverPath: string, videoId?: number) {
     }
     // 对于文件路径（缩略图等），需要获取config来构建绝对路径
     try {
-      const config = await invoke("get_config") as any;
+      const config = (await invoke("get_config")) as any;
       const absolutePath = `${config.output}/${coverPath}`;
       return tauri_convert(absolutePath);
     } catch (error) {
@@ -153,28 +156,70 @@ async function convertCoverSrc(coverPath: string, videoId?: number) {
       return tauri_convert(coverPath);
     }
   }
-  
+
   // 如果是base64数据URL，使用专门的API端点
   if (coverPath && coverPath.startsWith("data:image/") && videoId) {
     return `${ENDPOINT}/api/image/${videoId}`;
   }
-  
+
   // 普通文件路径
   return `${ENDPOINT}/output/${coverPath}`;
 }
 
 let event_source: EventSource | null = null;
+let reconnectTimeout: number | null = null;
+const MAX_RECONNECT_ATTEMPTS = 5;
+let reconnectAttempts = 0;
 
-if (!TAURI_ENV) {
+// 连接恢复回调列表
+const connectionRestoreCallbacks: Array<() => void> = [];
+
+function createEventSource() {
+  if (TAURI_ENV) return;
+
+  if (event_source) {
+    event_source.close();
+  }
   event_source = new EventSource(`${ENDPOINT}/api/sse`);
 
   event_source.onopen = () => {
-    console.log("EventSource connection opened");
+    reconnectAttempts = 0;
+
+    // 触发连接恢复回调
+    connectionRestoreCallbacks.forEach((callback) => {
+      try {
+        callback();
+      } catch (e) {
+        console.error("[SSE] Connection restore callback error:", e);
+      }
+    });
   };
 
   event_source.onerror = (error) => {
-    console.error("EventSource error:", error);
+    // 只有在连接真正关闭时才进行重连
+    if (
+      event_source.readyState === EventSource.CLOSED &&
+      reconnectAttempts < MAX_RECONNECT_ATTEMPTS
+    ) {
+      reconnectAttempts++;
+      const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 10000);
+
+      reconnectTimeout = window.setTimeout(() => {
+        createEventSource();
+      }, delay);
+    } else {
+      console.error("[SSE] Max reconnection attempts reached, giving up");
+    }
   };
+}
+
+// 注册连接恢复回调
+function onConnectionRestore(callback: () => void) {
+  connectionRestoreCallbacks.push(callback);
+}
+
+if (!TAURI_ENV) {
+  createEventSource();
 }
 
 async function listen<T>(event: string, callback: (data: any) => void) {
@@ -184,7 +229,6 @@ async function listen<T>(event: string, callback: (data: any) => void) {
 
   event_source.addEventListener(event, (event_data) => {
     const data = JSON.parse(event_data.data);
-    console.log("Parsed EventSource data:", data);
     callback({
       type: event,
       payload: data,
@@ -225,4 +269,5 @@ export {
   log,
   close_window,
   onOpenUrl,
+  onConnectionRestore,
 };
